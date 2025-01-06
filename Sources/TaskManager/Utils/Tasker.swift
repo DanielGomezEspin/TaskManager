@@ -8,9 +8,9 @@
 import Foundation
 
 // Tipo para reportar progreso
-public typealias ProgressReporter = (String, TaskerProgress) async throws -> Void
+public typealias ProgressReporter = @Sendable (String, TaskerProgress) async throws -> Void
 // Tipo de closure para la tarea larga que recibe una función para reportar progreso
-public typealias TaskWithProgress = (ProgressReporter) async throws -> Void
+public typealias TaskWithProgress = @Sendable (ProgressReporter) async throws -> Void
 
 public protocol Tasking {
     func createTask(mensaje: String, isUndefined: Bool, cancelPrevious: Bool, taskToExecute: @escaping TaskWithProgress) async
@@ -47,6 +47,21 @@ public actor Tasker {
         return await TaskerViewModel.s.showDialog(mensaje: mensaje, type: type)
     }
     
+    public func setNumTotalIteraciones(_ numTotalIteraciones: Int) {
+        self.numTotalIteraciones = numTotalIteraciones
+    }
+    public func setIteracionActual(_ iteracionActual: Int) {
+        self.iteracionActual = iteracionActual
+    }
+    public func incrementIteracionActual() {
+        iteracionActual += 1
+    }
+    
+    public func resetProgress(_ total: Int = 0){
+        numTotalIteraciones = total
+        iteracionActual = 0
+    }
+    
     public func start(mensaje: String = "Cargando...", isUndefined: Bool = false, cancelPrevious: Bool = false, taskToExecute: @escaping TaskWithProgress) async {
         
         if await TaskerViewModel.s.isBusy && cancelPrevious == true {
@@ -76,19 +91,18 @@ public actor Tasker {
                     await TaskerViewModel.s.setProgress(0.0)
                 case .undefined:
                     await TaskerViewModel.s.setProgress(0.0)
-                    numTotalIteraciones = 0
-                    iteracionActual = 0
+                    await resetProgress()
                 case .progressAbsolute(let absoluteValue):
                     await TaskerViewModel.s.setProgress(absoluteValue)
                 case .progress(let iteration, let total):
                     await TaskerViewModel.s.setProgress(Double(iteration) / Double(total))
                 case .autoProgressTotal(let total):
-                    if numTotalIteraciones == 0 || numTotalIteraciones != total {
-                        numTotalIteraciones = total
-                        iteracionActual = 0
+                    let nonisoltatedTotal = await numTotalIteraciones
+                    if nonisoltatedTotal == 0 || nonisoltatedTotal != total {
+                        await resetProgress(total)
                     }
-                    iteracionActual += 1
-                    if numTotalIteraciones != 0 {
+                    await incrementIteracionActual()
+                    if await numTotalIteraciones != 0 {
                         await TaskerViewModel.s.setProgress(Double(iteracionActual) / Double(numTotalIteraciones))
                     }else{
                         await TaskerViewModel.s.setProgress(0.0)

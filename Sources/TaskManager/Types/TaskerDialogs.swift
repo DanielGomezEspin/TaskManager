@@ -7,7 +7,7 @@
 
 import Foundation
 
-public enum TaskerDialogs {
+public enum TaskerDialogs: Sendable {
     case alert
     case info
     case warning
