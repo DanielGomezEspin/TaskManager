@@ -13,13 +13,13 @@ public typealias ProgressReporter = @Sendable (String, TaskerProgress) async thr
 public typealias TaskWithProgress = @Sendable (ProgressReporter) async throws -> Void
 
 public protocol Tasking {
-    func createTask(mensaje: String, isUndefined: Bool, cancelPrevious: Bool, taskToExecute: @escaping TaskWithProgress) async
+    func createTask(mensaje: String, showBlockindicator: Bool, isUndefined: Bool, cancelPrevious: Bool, taskToExecute: @escaping TaskWithProgress) async
     func showDialog(mensaje: String, type: TaskerDialogs) async -> Bool?
     func cancelTask() async
 }
 
 public extension Tasking {
-    func createTask(mensaje: String = "Cargando...", isUndefined: Bool = false, cancelPrevious: Bool = false, taskToExecute: @escaping TaskWithProgress) async {
+    func createTask(mensaje: String = "Cargando...", showBlockindicator: Bool = true, isUndefined: Bool = false, cancelPrevious: Bool = false, taskToExecute: @escaping TaskWithProgress) async {
         await Tasker.shared.start(mensaje: mensaje, isUndefined: isUndefined, cancelPrevious: cancelPrevious, taskToExecute: taskToExecute)
     }
     func showDialog(mensaje: String, type: TaskerDialogs = .success) async -> Bool? {
@@ -62,7 +62,7 @@ public actor Tasker {
         iteracionActual = 0
     }
     
-    public func start(mensaje: String = "Cargando...", isUndefined: Bool = false, cancelPrevious: Bool = false, taskToExecute: @escaping TaskWithProgress) async {
+    public func start(mensaje: String = "Cargando...", showBlockindicator: Bool = true, isUndefined: Bool = false, cancelPrevious: Bool = false, taskToExecute: @escaping TaskWithProgress) async {
         
         if await TaskerViewModel.s.isBusy && cancelPrevious == true {
             runningTask?.cancel()
@@ -71,7 +71,7 @@ public actor Tasker {
         
         await TaskerViewModel.s.waitNotBusy()
         
-        await TaskerViewModel.s.startProgress(isProgressUndefined: isUndefined)
+        await TaskerViewModel.s.startProgress(isProgressUndefined: isUndefined, showBlockindicator: showBlockindicator)
 
         numTotalIteraciones = 0
         iteracionActual = 0

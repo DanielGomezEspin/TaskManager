@@ -131,11 +131,13 @@ class TaskerViewModel: ObservableObject {
         return dialogResponse
     }
     
-    public func startProgress(isProgressUndefined: Bool) {
+    public func startProgress(isProgressUndefined: Bool, showBlockindicator: Bool) {
         isBusy = true
         progress = 0
         self.showProgressBar = !isProgressUndefined
-        isProgressPresented = true
+        if showBlockindicator {
+            isProgressPresented = true
+        }
     }
     
     public func stopProgress() {
