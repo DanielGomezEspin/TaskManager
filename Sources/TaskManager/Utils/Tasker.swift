@@ -20,7 +20,7 @@ public protocol Tasking {
 
 public extension Tasking {
     func createTask(mensaje: String = "Cargando...", showBlockindicator: Bool = true, isUndefined: Bool = false, cancelPrevious: Bool = false, taskToExecute: @escaping TaskWithProgress) async {
-        await Tasker.shared.start(mensaje: mensaje, isUndefined: isUndefined, cancelPrevious: cancelPrevious, taskToExecute: taskToExecute)
+        await Tasker.shared.start(mensaje: mensaje, showBlockindicator: showBlockindicator, isUndefined: isUndefined, cancelPrevious: cancelPrevious, taskToExecute: taskToExecute)
     }
     func showDialog(mensaje: String, type: TaskerDialogs = .success) async -> Bool? {
         return await Tasker.shared.showDialog(mensaje: mensaje, type: type)
