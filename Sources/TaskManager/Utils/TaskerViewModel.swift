@@ -6,12 +6,12 @@
 //
 
 import Foundation
-
+import Combine
 
 
 @MainActor
-class TaskerViewModel: ObservableObject {
-    static let s = TaskerViewModel()
+public class TaskerViewModel: Combine.ObservableObject {
+    public static let s = TaskerViewModel()
     @Published public var isBusy = false
     @Published public var progress: Double = 0
     @Published public var error: String = ""

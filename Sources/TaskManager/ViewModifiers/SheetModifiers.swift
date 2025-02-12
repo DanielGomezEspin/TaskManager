@@ -15,16 +15,44 @@ public struct TaskProgressModifier: ViewModifier {
         content
             .sheet(isPresented: $taskerVM.isProgressPresented) {
                 ProgressDialog(mensaje: $taskerVM.message, progress: $taskerVM.progress, showProgressBar: taskerVM.showProgressBar) {
-                    Task{
+                    Task {
                         await Tasker.shared.cancel()
                     }
                 }
             }
-            .sheet(isPresented: $taskerVM.isErrorPresented){
-                ErrorDialog(mensaje: $taskerVM.error) {
+        
+            .alert("Error", isPresented: $taskerVM.isErrorPresented){
+                Button("OK", role: .cancel) {
                     taskerVM.isErrorPresented = false
                 }
+            } message: {
+                Text(taskerVM.error)
             }
+        
+            .alert(taskerVM.getTitle(), isPresented: $taskerVM.isQuestionDialogPresented) {
+                Button(taskerVM.yesButtonText) {
+                            // Acción para "Sí"
+                            taskerVM.dialogResponse = true
+                            taskerVM.isQuestionDialogPresented = false
+                        }
+                if taskerVM.showNoButton {
+                    Button(taskerVM.noButtonText, role: .destructive) {
+                        // Acción para "No"
+                        taskerVM.dialogResponse = false
+                        taskerVM.isQuestionDialogPresented = false
+                    }
+                }
+                if taskerVM.showCancelButton {
+                    Button(taskerVM.cancelButtonText, role: .cancel) {
+                        // Acción para "Cancelar"
+                        taskerVM.dialogResponse = nil
+                        taskerVM.isQuestionDialogPresented = false
+                    }
+                }
+                    } message: {
+                        Text(taskerVM.message)
+                    }
+        /*
             .sheet(isPresented: $taskerVM.isQuestionDialogPresented){
                 ConfirmationDialog(
                     title: taskerVM.getTitle(),
@@ -34,20 +62,21 @@ public struct TaskProgressModifier: ViewModifier {
                     yesButtonText: taskerVM.yesButtonText,
                     noButtonText: taskerVM.noButtonText,
                     cancelButtonText: taskerVM.cancelButtonText,
-                                   onYes: {
-                    taskerVM.dialogResponse = true
-                    taskerVM.isQuestionDialogPresented = false
-                },
-                                   onNo: {
-                    taskerVM.dialogResponse = false
-                    taskerVM.isQuestionDialogPresented = false
-                },
-                                   onCancel: {
-                    taskerVM.dialogResponse = nil
-                    taskerVM.isQuestionDialogPresented = false
-                    
-                })
+                    onYes: {
+                        taskerVM.dialogResponse = true
+                        taskerVM.isQuestionDialogPresented = false
+                    },
+                    onNo: {
+                        taskerVM.dialogResponse = false
+                        taskerVM.isQuestionDialogPresented = false
+                    },
+                    onCancel: {
+                        taskerVM.dialogResponse = nil
+                        taskerVM.isQuestionDialogPresented = false
+                        
+                    })
             }
+         */
         
     }
 }

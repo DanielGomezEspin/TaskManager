@@ -17,6 +17,9 @@ public struct ProgressDialog: View {
     
     public var body: some View {
         VStack(spacing: 20) {
+            
+            AppIconImageView(name: NSImage.applicationIconName)
+                            .padding()
             if showProgressBar {
                 ProgressBar(value: progress)
                     .frame(height: 20)
@@ -41,8 +44,36 @@ public struct ProgressDialog: View {
             }
         }
         .padding()
-        .frame(width: 300, height: 150)
+        .frame(width: 300)
         
     }
 }
+
+
+// Vista reutilizable para el icono de la app
+struct AppIconImageView: View {
+    let size: CGFloat = 64
+    let name: NSImage.Name
+    
+    var body: some View {
+        Group {
+            if let appIcon = NSImage(named: name) {
+                Image(nsImage: appIcon)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .frame(width: size, height: size)
+                    .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 2)
+            } else {
+                // Fallback si no se encuentra el icono
+                Image(systemName: "app.fill")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: size, height: size)
+                    .foregroundColor(.gray)
+            }
+        }
+    }
+}
+
 

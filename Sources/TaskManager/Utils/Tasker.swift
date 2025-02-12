@@ -7,28 +7,7 @@
 
 import Foundation
 
-// Tipo para reportar progreso
-public typealias ProgressReporter = @Sendable (String, TaskerProgress) async throws -> Void
-// Tipo de closure para la tarea larga que recibe una función para reportar progreso
-public typealias TaskWithProgress = @Sendable (ProgressReporter) async throws -> Void
 
-public protocol Tasking {
-    func createTask(mensaje: String, showBlockindicator: Bool, isUndefined: Bool, cancelPrevious: Bool, taskToExecute: @escaping TaskWithProgress) async
-    func showDialog(mensaje: String, type: TaskerDialogs) async -> Bool?
-    func cancelTask() async
-}
-
-public extension Tasking {
-    func createTask(mensaje: String = "Cargando...", showBlockindicator: Bool = true, isUndefined: Bool = false, cancelPrevious: Bool = false, taskToExecute: @escaping TaskWithProgress) async {
-        await Tasker.shared.start(mensaje: mensaje, showBlockindicator: showBlockindicator, isUndefined: isUndefined, cancelPrevious: cancelPrevious, taskToExecute: taskToExecute)
-    }
-    func showDialog(mensaje: String, type: TaskerDialogs = .success) async -> Bool? {
-        return await Tasker.shared.showDialog(mensaje: mensaje, type: type)
-    }
-    func cancelTask() async{
-        await Tasker.shared.cancel()
-    }
-}
 
 
 public actor Tasker {
@@ -36,48 +15,137 @@ public actor Tasker {
     private init(){
     }
     
-    
-    private var runningTask: Task<Void, Error>?
+    private var runningTaskTask: Task<Void, Error>?
+    private var runningTareaProgramada: TareaProgramada = TareaProgramada()
     private var numTotalIteraciones = 0
     private var iteracionActual = 0
- 
-    
-    public func showDialog(mensaje: String, type: TaskerDialogs = .success) async -> Bool? {
+    private var isExecuting = false
 
-        return await TaskerViewModel.s.showDialog(mensaje: mensaje, type: type)
+    
+    private struct TaskWaiter {
+        let id: UUID
+        let continuation: CheckedContinuation<Void, Never>
     }
     
-    public func setNumTotalIteraciones(_ numTotalIteraciones: Int) {
-        self.numTotalIteraciones = numTotalIteraciones
-    }
-    public func setIteracionActual(_ iteracionActual: Int) {
-        self.iteracionActual = iteracionActual
-    }
-    public func incrementIteracionActual() {
-        iteracionActual += 1
-    }
-    
-    public func resetProgress(_ total: Int = 0){
-        numTotalIteraciones = total
-        iteracionActual = 0
-    }
-    
-    public func start(mensaje: String = "Cargando...", showBlockindicator: Bool = true, isUndefined: Bool = false, cancelPrevious: Bool = false, taskToExecute: @escaping TaskWithProgress) async {
+    // Añade esta propiedad para almacenar las esperas
+    private var waiters: [TaskWaiter] = []
+
+    private func wakeup(for id: UUID) {
+        // Notificar a los waiters que están esperando esta tarea
+        let waitersForThisTask = waiters.filter { $0.id == id }
+        waiters.removeAll { $0.id == id }
         
-        if await TaskerViewModel.s.isBusy && cancelPrevious == true {
-            runningTask?.cancel()
+        // Resumir todas las continuaciones para esta tarea
+        for waiter in waitersForThisTask {
+            waiter.continuation.resume()
+        }
+    }
+
+    
+    // Añade la función para esperar por una tarea específica
+    public func waitForTask(id: UUID) async {
+        // Si la tarea no está en la cola ni ejecutándose, retornamos finalizada
+        guard tareas.contains(where: { $0.id == id }) || runningTareaProgramada.id == id else {
+            return
         }
         
+        await withCheckedContinuation { continuation in
+            waiters.append(TaskWaiter(id: id, continuation: continuation))
+        }
+    }
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    /* cola tareas */
+    private var tareas: [TareaProgramada] = []
+    
+    public func addTask(function: String, id: UUID, mensaje: String, showBlockindicator: Bool = true, isUndefined: Bool = false, cancelPrevious: Bool = false, taskToExecute: @escaping TaskWithProgress) async {
+        // eliminar todas las tareas que estén en la cola con el mismo nombre y no han empezado
+        removeTask(name: function)
+        // cancela la tarea en ejecución si es la misma que estamos intentando encolar
+        if cancelPrevious == true {
+            await cancel(name: function)
+        }
+        let tarea: TareaProgramada = TareaProgramada(id: id, name: function, tarea: taskToExecute, mensaje: mensaje, showBlockindicator: showBlockindicator, isUndefined: isUndefined, cancelPrevious: cancelPrevious)
         
-        await TaskerViewModel.s.waitNotBusy()
+        tareas.append(tarea)
+        if !isExecuting {
+            Task {
+                await executeNextTask()
+            }
+        }
         
-        await TaskerViewModel.s.startProgress(isProgressUndefined: isUndefined, showBlockindicator: showBlockindicator)
+        print("                                 ADD  \(tarea.name)  tarea:\(tarea.id) : \(tareas.count)")
+        await waitForTask(id: tarea.id)
+    }
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    private func removeTask(name: String) {
+        tareas.filter { $0.name == name }.forEach { wakeup(for: $0.id) }
+        tareas.removeAll(where: {$0.name == name})
+    }
+    private func removeTask(id: UUID) {
+        tareas.filter { $0.id == id }.forEach { wakeup(for: $0.id) }
+        tareas.removeAll(where: {$0.id == id})
+    }
 
-        numTotalIteraciones = 0
-        iteracionActual = 0
-
+    /* cola tareas*/
+    
+    private func executeNextTask() async {
+        guard !tareas.isEmpty && !isExecuting else {
+            return
+        }
         
-        runningTask = Task {
+        isExecuting = true
+        while !tareas.isEmpty {
+            runningTareaProgramada = tareas.removeFirst()
+            // Ejecuta la tarea
+            print("INICIO \(runningTareaProgramada.name) - \(runningTareaProgramada.id) : \(tareas.count)")
+            let resultado = await self.execute(mensaje: runningTareaProgramada.mensaje, showBlockindicator: runningTareaProgramada.showBlockindicator, isUndefined: runningTareaProgramada.isUndefined, taskToExecute: runningTareaProgramada.tarea)
+
+            wakeup(for: runningTareaProgramada.id)
+            
+            switch resultado {
+            case .finalizada:
+                print("FIN    \(runningTareaProgramada.name) - \(runningTareaProgramada.id)  : \(tareas.count)")
+            case .cancelada:
+                print("CANCEL \(runningTareaProgramada.name) - \(runningTareaProgramada.id)  : \(tareas.count)")
+            case .error(let error):
+                print("ERROR  \(runningTareaProgramada.name) - \(runningTareaProgramada.id)  : \(tareas.count) : \(error.localizedDescription)")
+            }
+            
+        }
+        isExecuting = false
+    }
+    
+    
+    
+    
+    private func execute(mensaje: String, showBlockindicator: Bool = true, isUndefined: Bool = false, taskToExecute: @escaping TaskWithProgress) async -> TaskStatus {
+        
+        runningTaskTask = Task {
+            
+            
+            await TaskerViewModel.s.startProgress(isProgressUndefined: isUndefined, showBlockindicator: showBlockindicator)
+            
+            numTotalIteraciones = 0
+            iteracionActual = 0
+            
             try await taskToExecute({ mensaje, progress in
                 
                 try Task.checkCancellation()
@@ -112,26 +180,73 @@ public actor Tasker {
                 
                 await TaskerViewModel.s.setMessage(mensaje)
             })
+            
+            
+            
         }
-        
+        var resultado: TaskStatus
         
         do{
-            try await runningTask?.value
+            try await runningTaskTask?.value
+            resultado = .finalizada
         } catch is CancellationError {
+            resultado = .cancelada
         } catch {
             await TaskerViewModel.s.setError(error.localizedDescription)
+            resultado = .error(error)
         }
-        
-        runningTask = nil
         
         await TaskerViewModel.s.stopProgress()
         
+        return resultado
+    }
+
+    
+    
+    
+    
+    
+    
+    public func cancel() async {
+        runningTaskTask?.cancel()
+        try? await runningTaskTask?.value
+        
+    }
+    
+    public func cancelById(_ id: UUID) async {
+        // eliminar todas las de la cola con ese id
+        removeTask(id: id)
+
+        guard runningTareaProgramada.id == id else { return }
+        await cancel()
+    }
+
+    private func cancel(name: String) async {
+
+        guard runningTareaProgramada.name == name else { return }
+        await cancel()
     }
     
     
     
-    public func cancel() {
-        runningTask?.cancel()
-        runningTask = nil
+    public func showDialog(mensaje: String, type: TaskerDialogs = .success) async -> Bool? {
+        return await TaskerViewModel.s.showDialog(mensaje: mensaje, type: type)
     }
+    
+    public func setNumTotalIteraciones(_ numTotalIteraciones: Int) {
+        self.numTotalIteraciones = numTotalIteraciones
+    }
+    public func setIteracionActual(_ iteracionActual: Int) {
+        self.iteracionActual = iteracionActual
+    }
+    public func incrementIteracionActual() {
+        iteracionActual += 1
+    }
+    
+    public func resetProgress(_ total: Int = 0){
+        numTotalIteraciones = total
+        iteracionActual = 0
+    }
+
 }
+

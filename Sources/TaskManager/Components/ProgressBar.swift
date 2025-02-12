@@ -10,6 +10,10 @@ import SwiftUI
 public struct ProgressBar: View {
     var value: Double
     
+    public init(value: Double) {
+        self.value = value
+    }
+    
     public var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
